@@ -1,6 +1,6 @@
 from multipledispatch import dispatch
 from fractions import Fraction
-
+import time
 class Vector:
     """clase envoltorio de una lista de numeros, no hereda por cuestiones de limitaciones"""
     def __init__(self, vector):
@@ -100,20 +100,18 @@ class Matriz:
         for i in range(len(newMatriz.filas)):
              vectorFinal.append(self.filas[i]-newMatriz.filas[i])
         return Matriz(vectorFinal)
-    
-    @dispatch(int)
-    def __mul__(self, value):
-        matrizFinal = list()
-        for i in range(len(self.filas)):
-            matrizFinal.append(Fraccion(self.filas[i]*value))
-        return Matriz(matrizFinal)
-    
-    @dispatch(object)
+
     def __mul__(self, newMatriz):
         """se ejecuta la multiplicacion de matriz*matriz
             en la que debemos comprobar que la cantidad de columnas de la matriz A
             sea igual a la cantidad de filas de la columna B
         """
+        if isinstance(newMatriz,Fraction):
+            matrizFinal = self.copy()
+            for i in range(len(self.filas)):
+                matrizFinal.filas[i]=(self.filas[i]*newMatriz)
+            return matrizFinal
+
         newMatriz.normalize()
         if len(self.filas[0].vector) != len(newMatriz.filas):
             return "Error, la matriz A debe tener la misma cantidad de columnas que la matriz B de filas"
@@ -187,12 +185,14 @@ class Matriz:
     def determinante(self):
         #el determinante se obtiene por medio de la multiplicacion recursiva de los determinantes inferiores
         #hasta que se llegue al determinante de 2x2
+        if len(self.filas) != len(self.filas[-1].vector):
+            return "La matriz debe ser cuadrada para poder sacar un determinante"
         matriz = self.copy()
         def determinate(matriz):
+            determinante = 0
             if(len(matriz.filas)==2 and len(matriz.filas[0].vector)==2):
                 return matriz.filas[0].vector[0]*matriz.filas[1].vector[1]-matriz.filas[1].vector[0]*matriz.filas[0].vector[1]
-            determinante = 0
-            for i in range(len(matriz.filas[0].vector)):
+            for i in range(len(matriz.filas[-1].vector)):
                 matrizOp = matriz.copy()
                 pivote = matrizOp.filas[0].vector[i]
                 matrizOp = matrizOp.removeRow(0)
@@ -203,14 +203,58 @@ class Matriz:
 
         return determinate(matriz)
 
-    def inversa(self):
+    def gauss_jordan(self):
+        res = list()
+        for i in self.filas:
+            lista = list()
+            lista.append(i.vector[-1])
+            res.append(lista)
+        matrizRes = createMatrix(res)
+        return self.inversa(matrizRes)
+    def transversa(self):
+        matrizRes = self.copy()
+        for i in range(len(self.filas)):
+            for j in range(len(self.filas[-1].vector)):
+                matrizRes.filas[i].vector[j] = self.filas[j].vector[i]
+        return matrizRes
+
+    def fast_inversa(self):
         determinante = self.determinante()
-        if determinante == 0:
+        if determinante ==0:
             return "La matriz no tiene inversa ya que su determinante es 0"
+        else:
+            print('determinante=',determinante)
+        matrizRes = self.copy()
+        for x in range(len(matrizRes.filas)):
+            for y in range(len(matrizRes.filas[-1].vector)):
+                matriz = self.copy()
+                matriz = matriz.removeCol(y)
+                matriz = matriz.removeRow(x)
+                if(len(matriz.filas)==2 and len(matriz.filas[0].vector)==2):
+                    determinante = matriz.filas[0].vector[0]*matriz.filas[1].vector[1]-matriz.filas[1].vector[0]*matriz.filas[0].vector[1]
+                else:
+                    determinante = determinante(matriz)
+                matrizRes.filas[x].vector[y] = pow(-1,x+y)*determinante
+
+        matrizRes.normalize()
+        matrizRes = matrizRes.transversa()
+        matrizRes = matrizRes * (1/determinante)
+        return matrizRes
+ 
+    def inversa(self, matrizRes=None):
         matrizOperada = self.copy()
         print(matrizOperada)
-        print('determinante=',determinante)
-        matrizRes = matrizOperada.identidad(False)
+        if matrizRes==None:
+            determinante = self.determinante()
+            if determinante == 0:
+                return "La matriz no tiene inversa ya que su determinante es 0"
+            else:
+                print('determinante=',determinante)
+            matrizRes = matrizOperada.identidad(False)
+        else:
+            print(matrizRes)
+            for i in matrizOperada.filas:
+                i.vector.pop()
         #resolvemos fila por fila
         for i in range(len(self.filas)):
             matrizOperada,matrizRes = volver1(matrizOperada,matrizRes,i)
@@ -235,7 +279,7 @@ class Matriz:
         if(index==0):
             matriz.filas = matriz.filas[1:]
         else:
-            pass
+            matriz.filas = matriz.filas[:index]+matriz.filas[index+1:]
         return matriz
 
     def removeCol(self,index):
@@ -316,7 +360,6 @@ class Fraccion(Fraction):
         denominador = self.denominator*fraccion.denominator
         fracRes = Fraccion(numerador,denominador)
         return fracRes.simplify()
-    
     def simplify(self):
         self =self.limit_denominator()
         newFrac = self
@@ -367,6 +410,7 @@ def volver1(matriz=None,identidad=None,pivote=1,show=True):
     matriz.filas[pivote] = fila
     return matriz,identidad
 def volver0(matriz=None,identidad=None,pivote=1,fila=1,show=True):
+
     if identidad==None:
         identidad=matriz.copy()
     valorACambiar = matriz.filas[fila].vector[pivote]
@@ -382,10 +426,10 @@ def volver0(matriz=None,identidad=None,pivote=1,fila=1,show=True):
     return matriz,identidad
 
 matrizL1 = [
-    [1,1,1,1],
-    [1,2,-1,2],
-    [1,-1,2,1],
-    [1,3,3,2],
+    [1,1,1],
+    [1,2,2],
+    [1,1,2],
 ]
 matriz1 = createMatrix(matrizL1)
-print(matriz1.inversa())
+inversaR = matriz1.fast_inversa()
+print(inversaR)
